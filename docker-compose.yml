@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./api
+    networks:
+      - microservices-network
+    volumes:
+      - api-data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=PathPrefix(`/`)"
+      - "traefik.http.services.api.loadbalancer.server.port=5000"
+    environment:
+      - BASIC_AUTH_USERNAME=user
+      - BASIC_AUTH_PASSWORD=pass
+
+  worker:
+    build:
+      context: ./worker
+    networks:
+      - microservices-network
+    volumes:
+      - api-data:/data
+    depends_on:
+      - rabbitmq
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:management
+    networks:
+      - microservices-network
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    ports:
+      - "15672:15672"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.rabbitmq.rule=PathPrefix(`/monitor`)"
+      - "traefik.http.services.rabbitmq.loadbalancer.server.port=15672"
+      - "traefik.http.middlewares.rabbitmq-stripprefix.stripprefix.prefixes=/monitor"
+      - "traefik.http.routers.rabbitmq.middlewares=rabbitmq-stripprefix"
+
+  traefik:
+    image: traefik:v2.5
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    networks:
+      - microservices-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+networks:
+  microservices-network:
+    driver: bridge
+
+volumes:
+  api-data:
+  rabbitmq-data:

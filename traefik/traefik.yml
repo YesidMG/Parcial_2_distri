@@ -1,0 +1,42 @@
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    watch: true
+    exposedByDefault: false
+
+http:
+  routers:
+    api:
+      rule: "PathPrefix(`/api`)"
+      service: api
+      entryPoints:
+        - web
+      middlewares:
+        - auth
+
+    rabbitmq:
+      rule: "PathPrefix(`/monitor`)"
+      service: rabbitmq
+      entryPoints:
+        - web
+
+  services:
+    api:
+      loadBalancer:
+        servers:
+          - url: "http://api:80"
+
+    rabbitmq:
+      loadBalancer:
+        servers:
+          - url: "http://rabbitmq:15672"
+
+middlewares:
+  auth:
+    basicAuth:
+      users:
+        - "user:password"  # Cambiar por credenciales seguras
+
+entryPoints:
+  web:
+    address: ":80"
